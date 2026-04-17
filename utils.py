@@ -1,6 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import time
 
 FEATURES = [
     'roa', 'profit_margin', 'current_ratio', 'debt_ratio',
@@ -55,20 +56,38 @@ def safe_col(df, *keys):
 
 
 def fetch_all_data(ticker_sym: str):
-    """Return (inc, bal, cf) DataFrames aligned on common fiscal year dates."""
-    tk = yf.Ticker(ticker_sym)
-    inc = tk.financials.T
-    bal = tk.balance_sheet.T
-    cf  = tk.cashflow.T
-    if inc.empty or bal.empty or cf.empty:
-        raise ValueError(f"No financial data found for '{ticker_sym}'.")
-    dates = inc.index.intersection(bal.index).intersection(cf.index)
-    if len(dates) < 2:
-        raise ValueError(f"'{ticker_sym}' has fewer than 2 years of overlapping data.")
-    inc = inc.loc[dates].sort_index()
-    bal = bal.loc[dates].sort_index()
-    cf  = cf.loc[dates].sort_index()
-    return inc, bal, cf
+    """Return (inc, bal, cf) DataFrames. Retries up to 3x for cloud reliability."""
+    for attempt in range(3):
+        try:
+            tk  = yf.Ticker(ticker_sym)
+            inc = tk.financials.T
+            bal = tk.balance_sheet.T
+            cf  = tk.cashflow.T
+            if inc.empty or bal.empty or cf.empty:
+                time.sleep(1.5)
+                tk  = yf.Ticker(ticker_sym)
+                inc = tk.financials.T
+                bal = tk.balance_sheet.T
+                cf  = tk.cashflow.T
+            if inc.empty or bal.empty or cf.empty:
+                if attempt < 2:
+                    time.sleep(2)
+                    continue
+                raise ValueError(
+                    f"No financial data found for '{ticker_sym}'. "
+                    "Please check the ticker symbol and try again.")
+            dates = inc.index.intersection(bal.index).intersection(cf.index)
+            if len(dates) < 2:
+                raise ValueError(f"'{ticker_sym}' has fewer than 2 years of data.")
+            return (inc.loc[dates].sort_index(),
+                    bal.loc[dates].sort_index(),
+                    cf.loc[dates].sort_index())
+        except ValueError:
+            raise
+        except Exception as e:
+            if attempt == 2:
+                raise ValueError(f"Could not fetch '{ticker_sym}': {e}")
+            time.sleep(2)
 
 
 def compute_features_all_years(ticker_sym: str, industry_pm: float) -> pd.DataFrame:
