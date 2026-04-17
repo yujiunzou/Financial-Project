@@ -8,7 +8,7 @@ st.set_page_config(
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.title("🔍 Financial Fraud Detection Dashboard")
-st.markdown("##### AI-powered earnings manipulation risk analysis for publicly listed companies")
+st.markdown("#####  Earnings manipulation risk analysis for publicly listed companies")
 st.divider()
 
 # ── What this app does ────────────────────────────────────────────────────────
